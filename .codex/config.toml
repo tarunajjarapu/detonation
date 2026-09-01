@@ -14,7 +14,7 @@ args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "filesystem", 
 cwd = "/Users/tajj/projects/detonation"
 startup_timeout_sec = 20
 tool_timeout_sec = 30
-enabled = false
+enabled = true
 enabled_tools = ["read_text_file", "list_allowed_directories"]
 default_tools_approval_mode = "prompt"
 
