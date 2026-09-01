@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+
+# Generated syscall traces
+trace-output/
+
+# Local environments and editor files
+.venv/
+.env
+.DS_Store
+.idea/
+.vscode/
