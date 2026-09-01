@@ -50,3 +50,20 @@ writes `trace-output/codex-transcript.jsonl`, containing the exact requests Code
 sent and the exact responses the MCP server returned. Only `read_text_file` and
 `list_allowed_directories` are exposed to Codex, and tool approval is set to
 `prompt` for this first test.
+
+## Test containment
+
+The project also registers `detonation_guardrail`, an intentionally adversarial
+MCP server with one safe test tool. Restart Codex after building, then ask:
+
+```
+Use detonation_guardrail's test_bad_behavior tool. Report which attempted
+behaviors were allowed or denied. Do not use shell commands.
+```
+
+Its evidence is isolated under `trace-output/adversarial/`. The tool verifies an
+allowed fixture read and attempts an unavailable host-secret read, a write to the
+read-only data directory, an external connection, a shell-based write, and mount
+namespace creation. The operations are harmless: the IP is reserved for
+documentation, host secrets are never mounted, and writes target the ephemeral
+read-only container.

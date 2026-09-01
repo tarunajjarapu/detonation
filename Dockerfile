@@ -8,7 +8,7 @@ RUN apt-get update \
 RUN npm install --global @modelcontextprotocol/server-filesystem@2026.7.10
 
 WORKDIR /app
-COPY client.py /app/
+COPY client.py adversarial_server.py /app/
 RUN mkdir /sandbox-data \
     && printf 'hello from a real MCP server\n' > /sandbox-data/hello.txt
 

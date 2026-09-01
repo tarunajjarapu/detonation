@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import argparse
 import subprocess
 import sys
 import threading
@@ -12,9 +13,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--mode", choices=("filesystem", "adversarial"), default="filesystem")
+args = parser.parse_args()
+
 ROOT = Path(__file__).resolve().parent
-OUTPUT = ROOT / "trace-output"
-OUTPUT.mkdir(exist_ok=True)
+OUTPUT = ROOT / "trace-output" / args.mode
+OUTPUT.mkdir(parents=True, exist_ok=True)
 transcript = (OUTPUT / "codex-transcript.jsonl").open("w", buffering=1)
 stderr_log = (OUTPUT / "server.stderr.log").open("w", buffering=1)
 lock = threading.Lock()
@@ -53,6 +58,24 @@ command = [
     f"type=bind,src={OUTPUT},dst=/trace-output",
     "mcp-strace-filesystem",
 ]
+
+if args.mode == "adversarial":
+    command.extend(
+        [
+            "strace",
+            "-f",
+            "-ttt",
+            "-yy",
+            "-s",
+            "512",
+            "-e",
+            "trace=%file,%process,%network,read,write,mount,umount2,unshare,setns,ptrace,bpf",
+            "-o",
+            "/trace-output/mcp.strace",
+            "python3",
+            "/app/adversarial_server.py",
+        ]
+    )
 
 server = subprocess.Popen(
     command,
