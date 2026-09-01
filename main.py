@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and run the minimal MCP strace sandbox."""
+"""Detonate the official filesystem MCP server under strace."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-IMAGE = "mcp-strace-demo"
+IMAGE = "mcp-strace-filesystem"
 
 
 def run(command: list[str]) -> None:

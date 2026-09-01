@@ -1,8 +1,10 @@
-# Sandboxed MCP call with `strace`
+# Detonating a real MCP server with `strace`
 
-This is a minimal MCP client/server exchange over stdio. The server exposes one
-`echo` tool. It runs under `strace` inside a Linux container with networking
-disabled, a read-only filesystem, dropped capabilities, and resource limits.
+This runs the official `@modelcontextprotocol/server-filesystem@2026.7.10`
+server under `strace`. A small driver initializes it, discovers its genuine tool
+definitions, and invokes `read_text_file` against `/sandbox-data/hello.txt`.
+The server runs inside a Linux container with networking disabled, a read-only
+filesystem, dropped capabilities, and resource limits.
 
 Run it:
 
@@ -10,17 +12,24 @@ Run it:
 python3 main.py
 ```
 
-The JSON printed in the terminal is the MCP handshake, tool discovery, and tool
-result. The syscall trace is written to `trace-output/mcp.strace`.
+The JSON printed in the terminal is the real server's MCP handshake, tool
+discovery, and result. Outputs are:
+
+- `trace-output/mcp.strace`: timestamped server and child-process syscalls
+- `trace-output/events.json`: timestamped MCP requests and responses for correlation
+- `trace-output/server.stderr.log`: server diagnostics
 
 Useful ways to inspect it:
 
 ```sh
-# MCP messages crossing stdin/stdout
+# MCP messages crossing the real server's stdin/stdout
 grep -E 'read\(0|write\(1' trace-output/mcp.strace
 
 # Attempts to open files or use the network
 grep -E 'openat|socket|connect' trace-output/mcp.strace
 ```
+
+Look up a phase in `events.json`, then compare its `request_started` and
+`request_finished` timestamps with the epoch timestamps in `mcp.strace`.
 
 After the first build, use `python3 main.py --skip-build` for quicker runs.

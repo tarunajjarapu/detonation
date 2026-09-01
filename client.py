@@ -1,44 +1,63 @@
 #!/usr/bin/env python3
-"""Run one MCP handshake and echo tool call against the traced server."""
+"""Drive a real filesystem MCP server while recording its syscalls."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+OUTPUT = Path("/trace-output")
+events: list[dict] = []
+stderr_log = (OUTPUT / "server.stderr.log").open("w")
 
 
 server = subprocess.Popen(
     [
         "strace",
         "-f",
-        "-tt",
+        "-ttt",
         "-s",
         "512",
         "-e",
         "trace=%file,%process,%network,read,write",
         "-o",
         "/trace-output/mcp.strace",
-        "python3",
-        "/app/server.py",
+        "mcp-server-filesystem",
+        "/sandbox-data",
     ],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
+    stderr=stderr_log,
     text=True,
 )
 
 
-def send(message: dict, expect_response: bool = True) -> dict | None:
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def send(phase: str, message: dict, expect_response: bool = True) -> dict | None:
     assert server.stdin is not None and server.stdout is not None
+    event = {"phase": phase, "request_started": now(), "request": message}
     server.stdin.write(json.dumps(message) + "\n")
     server.stdin.flush()
     if not expect_response:
+        event["request_finished"] = now()
+        events.append(event)
         return None
     response = json.loads(server.stdout.readline())
+    event["request_finished"] = now()
+    event["response"] = response
+    events.append(event)
     print(json.dumps(response, indent=2))
     return response
 
 
 send(
+    "initialize",
     {
         "jsonrpc": "2.0",
         "id": 1,
@@ -50,20 +69,34 @@ send(
         },
     }
 )
-send({"jsonrpc": "2.0", "method": "notifications/initialized"}, False)
-send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+send(
+    "initialized_notification",
+    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+    False,
+)
+tools = send(
+    "tools_list", {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+)
+assert tools is not None
+assert "read_text_file" in {tool["name"] for tool in tools["result"]["tools"]}
 result = send(
+    "tool_read_text_file",
     {
         "jsonrpc": "2.0",
         "id": 3,
         "method": "tools/call",
-        "params": {"name": "echo", "arguments": {"text": "hello from the sandbox"}},
+        "params": {
+            "name": "read_text_file",
+            "arguments": {"path": "/sandbox-data/hello.txt"},
+        },
     }
 )
 assert result is not None
-assert result["result"]["content"][0]["text"] == "hello from the sandbox"
+assert "real MCP server" in result["result"]["content"][0]["text"]
 
 assert server.stdin is not None
 server.stdin.close()
 if server.wait(timeout=5) != 0:
     raise SystemExit("traced MCP server failed")
+stderr_log.close()
+(OUTPUT / "events.json").write_text(json.dumps(events, indent=2) + "\n")

@@ -1,11 +1,16 @@
-FROM python:3.13-slim
+FROM node:24-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends strace \
+    && apt-get install -y --no-install-recommends python3 strace \
     && rm -rf /var/lib/apt/lists/*
 
+# A pinned, genuine MCP reference server rather than our test implementation.
+RUN npm install --global @modelcontextprotocol/server-filesystem@2026.7.10
+
 WORKDIR /app
-COPY server.py client.py /app/
+COPY client.py /app/
+RUN mkdir /sandbox-data \
+    && printf 'hello from a real MCP server\n' > /sandbox-data/hello.txt
 
 RUN useradd --uid 10001 --create-home sandbox \
     && mkdir /trace-output \
