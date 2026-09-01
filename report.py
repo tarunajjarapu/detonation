@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +17,7 @@ ERROR = re.compile(r"= -1 ([A-Z]+)")
 IP = re.compile(r'inet_addr\("([0-9.]+)"\)')
 PORT = re.compile(r"sin_port=htons\((\d+)\)")
 COUNT = re.compile(r"\) = (\d+)$")
+RESULT = re.compile(r"\) = (.+)$")
 CREDENTIAL_PATH = re.compile(r"(?i)(?:secret|token|api[-_]?key|credential|password|auth)")
 AUTH_HEADER = re.compile(r"(?i)\b(authorization|proxy-authorization|x-api-key|api-key|x-auth-token)\b")
 
@@ -32,6 +34,9 @@ def parse_trace(path: Path) -> list[dict]:
             continue
         pid, timestamp, syscall, body = match.groups()
         event = {"pid": int(pid), "timestamp": float(timestamp), "syscall": syscall}
+        result = RESULT.search(raw)
+        if result:
+            event["return_value"] = result.group(1)
         paths = PATH.findall(body)
         if paths:
             event["paths"] = paths
@@ -89,6 +94,8 @@ def make_report(mode: str, root: Path) -> dict:
         if response_times:
             window = [event for event in window if event["timestamp"] <= response_times[0] + 1.0]
         call["observed"] = window
+        call["syscall_counts"] = dict(Counter(event["syscall"] for event in window))
+        call["files_touched"] = sorted({path for event in window for path in event.get("paths", []) if path.startswith(("/sandbox-data", "/host-secrets", "/workspace", "/tmp"))})
         call["network"] = [
             event for event in window
             if event["syscall"] in {"socket", "connect", "bind", "listen", "accept", "send", "sendto", "sendmsg", "recv", "recvfrom", "recvmsg"}
@@ -112,7 +119,6 @@ def make_report(mode: str, root: Path) -> dict:
                     "process_match": credential["pid"] == network["pid"],
                     "relationship": "prior_read_same_process" if credential["pid"] == network["pid"] else "prior_read_different_process",
                     "confidence": "medium" if credential["pid"] == network["pid"] else "low",
-                    "payload_contains_canary": False,
                 })
     return {
         "mode": mode,
@@ -126,26 +132,44 @@ def make_report(mode: str, root: Path) -> dict:
             "pids": sorted({event["pid"] for event in trace}),
             "errors": sorted({event["error"] for event in trace if "error" in event}),
             "network_attempts": sum(event["syscall"] in {"connect", "send", "sendto", "sendmsg"} for event in trace),
-            "honeytoken_accesses": [event for event in trace if any("/host-secrets/api-key" in path for path in event.get("paths", []))],
             "credential_candidate_reads": [event for event in trace if event.get("credential_candidate_paths")],
+            "network_observations": [event for event in trace if event["syscall"] in {"socket", "connect", "bind", "listen", "accept", "send", "sendto", "sendmsg", "recv", "recvfrom", "recvmsg"}],
+            "trace_scope": "MCP server and child processes inside the Docker container; Docker host processes are not traced",
         },
-        "findings": [{
-            "severity": "high",
-            "type": "honeytoken_access",
-            "message": "MCP accessed synthetic credential canary /host-secrets/api-key",
-        }] if any("/host-secrets/api-key" in path for event in trace for path in event.get("paths", [])) else [],
+        "findings": [],
     }
 
 
 def write_markdown(report: dict, destination: Path) -> None:
-    lines = [f"# MCP detonation report ({report['mode']})", "", f"Server: `{report['static']['server']}`", "", "## Advertised tools", ""]
+    lines = [f"# MCP detonation report ({report['mode']})", "", f"Server: `{report['static']['server']}`", "", "## Executive summary", ""]
+    lines += [f"- Tool calls: `{len(report['tool_calls'])}`", f"- Extracted runtime events: `{report['runtime']['trace_events_extracted']}`", f"- Network connect/send attempts: `{report['runtime']['network_attempts']}`", ""]
+    if report["tool_calls"]:
+        lines += ["| Tool | Request ID | Syscalls | Network events | Files of interest |", "|---|---:|---:|---:|---|"]
+        for call in report["tool_calls"]:
+            lines.append(f"| `{call['tool']}` | `{call['id']}` | `{sum(call['syscall_counts'].values())}` | `{len(call['network'])}` | `{', '.join(call['files_touched']) or 'none'}` |")
+        lines.append("")
+    lines += ["## Advertised tools", ""]
     if report["static"]["tools_advertised"]:
         lines.extend(f"- `{tool}`" for tool in report["static"]["tools_advertised"])
     else:
         lines.append("- none captured")
+    lines += ["", "## Network observations", ""]
+    network = report["runtime"]["network_observations"]
+    if network:
+        lines += ["| PID | Syscall | Destination | Bytes | Result |", "|---:|---|---|---:|---|"]
+        for event in network:
+            target = ""
+            if event.get("destination_ip"):
+                target = f"{event['destination_ip']}:{event.get('destination_port', '?')}"
+            elif event.get("paths"):
+                target = " ".join(event["paths"])
+            lines.append(f"| {event['pid']} | `{event['syscall']}` | `{target}` | {event.get('bytes', '')} | `{event.get('return_value', '')}` |")
+    else:
+        lines.append("No network syscalls captured.")
     lines += ["", "## Tool-call observations", ""]
     for call in report["tool_calls"]:
         lines += [f"### `{call['tool']}` (request id `{call['id']}`)", "", f"Arguments: `{json.dumps(call['arguments'], separators=(',', ':'))}`", "", "Observed syscalls:"]
+        lines.append(f"- syscall counts: `{json.dumps(call['syscall_counts'], sort_keys=True)}`")
         for event in call["observed"]:
             suffix = f" [{event['error']}]" if "error" in event else ""
             paths = " " + " ".join(event.get("paths", [])) if event.get("paths") else ""
@@ -180,7 +204,7 @@ def write_markdown(report: dict, destination: Path) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("filesystem", "adversarial"), default="filesystem")
+    parser.add_argument("--mode", choices=("filesystem", "adversarial", "adversarial_network"), default="filesystem")
     args = parser.parse_args()
     project = Path(__file__).resolve().parent
     report = make_report(args.mode, project)

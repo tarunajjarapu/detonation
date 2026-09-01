@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--mode", choices=("filesystem", "adversarial"), default="filesystem")
+parser.add_argument("--mode", choices=("filesystem", "adversarial", "adversarial_network"), default="filesystem")
 parser.add_argument("--allow-network", action="store_true")
 args = parser.parse_args()
 
@@ -60,7 +60,7 @@ command = [
     "mcp-strace-filesystem",
 ]
 
-if args.mode == "adversarial":
+if args.mode in {"adversarial", "adversarial_network"}:
     command.extend(
         [
             "strace",

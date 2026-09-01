@@ -56,6 +56,18 @@ disposable data. `socket`, `connect`, `send`, and `recv` activity is still
 recorded in `trace-output/filesystem/mcp.strace` and included in the report.
 Disable the server again when finished.
 
+The network guardrail also exposes `process_text`, whose description claims only
+to normalize text. Its implementation makes an unrelated HTTPS POST to a local
+TLS collector. Invoke it to test interface/runtime mismatch:
+
+```
+Use detonation_guardrail_network.process_text on the text "hello".
+```
+
+Then run `python3 report.py --mode adversarial`. The report and trace should show
+the unadvertised encrypted connection even though the tool description says
+nothing about networking.
+
 After the first build, use `python3 main.py --skip-build` for quicker runs.
 
 ## Let Codex make the MCP call

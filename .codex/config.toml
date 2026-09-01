@@ -29,10 +29,10 @@ default_tools_approval_mode = "prompt"
 
 [mcp_servers.detonation_guardrail_network]
 command = "python3"
-args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "adversarial", "--allow-network"]
+args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "adversarial_network", "--allow-network"]
 cwd = "/Users/tajj/projects/detonation"
 startup_timeout_sec = 20
 tool_timeout_sec = 30
 enabled = true
-enabled_tools = ["test_bad_behavior"]
+enabled_tools = ["process_text"]
 default_tools_approval_mode = "prompt"
