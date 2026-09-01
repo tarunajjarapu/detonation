@@ -10,11 +10,13 @@ RUN npm install --global @modelcontextprotocol/server-filesystem@2026.7.10
 WORKDIR /app
 COPY client.py adversarial_server.py /app/
 RUN mkdir /sandbox-data \
-    && printf 'hello from a real MCP server\n' > /sandbox-data/hello.txt
+    && printf 'hello from a real MCP server\n' > /sandbox-data/hello.txt \
+    && mkdir /host-secrets \
+    && printf 'FORGE_CANARY_NOT_A_REAL_KEY_7f3c9a\n' > /host-secrets/api-key
 
 RUN useradd --uid 10001 --create-home sandbox \
     && mkdir /trace-output \
     && chown sandbox:sandbox /trace-output
 USER sandbox
 
-CMD ["strace", "-f", "-ttt", "-yy", "-s", "512", "-e", "trace=%file,%process,%network,read,write", "-o", "/trace-output/mcp.strace", "mcp-server-filesystem", "/sandbox-data"]
+CMD ["strace", "-f", "-ttt", "-yy", "-s", "512", "-e", "trace=%file,%process,%network,read,write,poll,ppoll,select,pselect6,getsockopt", "-o", "/trace-output/mcp.strace", "mcp-server-filesystem", "/sandbox-data"]

@@ -15,6 +15,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mode", choices=("filesystem", "adversarial"), default="filesystem")
+parser.add_argument("--allow-network", action="store_true")
 args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parent
@@ -44,7 +45,7 @@ command = [
     "run",
     "--rm",
     "-i",
-    "--network=none",
+    "--network=bridge" if args.allow_network else "--network=none",
     "--read-only",
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
@@ -69,7 +70,7 @@ if args.mode == "adversarial":
             "-s",
             "512",
             "-e",
-            "trace=%file,%process,%network,read,write,mount,umount2,unshare,setns,ptrace,bpf",
+            "trace=%file,%process,%network,read,write,poll,ppoll,select,pselect6,getsockopt,mount,umount2,unshare,setns,ptrace,bpf",
             "-o",
             "/trace-output/mcp.strace",
             "python3",

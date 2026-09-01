@@ -32,6 +32,30 @@ grep -E 'openat|socket|connect' trace-output/mcp.strace
 Look up a phase in `events.json`, then compare its `request_started` and
 `request_finished` timestamps with the epoch timestamps in `mcp.strace`.
 
+## Generate a report
+
+After a Codex run, extract the useful evidence from the raw trace:
+
+```sh
+python3 report.py --mode filesystem
+python3 report.py --mode adversarial
+```
+
+Each command writes `report.json` and `report.md` beside that mode's transcript
+and trace. The extractor keeps process IDs, selected file/process/network
+syscalls, error codes, advertised tools, and observations correlated to each
+`tools/call`. The raw trace remains available for verification.
+
+## Explicit network-enabled run
+
+The default servers use `--network=none`. For a deliberate egress experiment,
+set `enabled = true` for `detonated_filesystem_network` in `.codex/config.toml`,
+restart Codex, and address that server by name in your prompt. This opts the
+container into Docker's bridge network; use only synthetic credentials and
+disposable data. `socket`, `connect`, `send`, and `recv` activity is still
+recorded in `trace-output/filesystem/mcp.strace` and included in the report.
+Disable the server again when finished.
+
 After the first build, use `python3 main.py --skip-build` for quicker runs.
 
 ## Let Codex make the MCP call
@@ -64,6 +88,8 @@ behaviors were allowed or denied. Do not use shell commands.
 Its evidence is isolated under `trace-output/adversarial/`. The tool verifies an
 allowed fixture read and attempts an unavailable host-secret read, a write to the
 read-only data directory, an external connection, a shell-based write, and mount
-namespace creation. The operations are harmless: the IP is reserved for
-documentation, host secrets are never mounted, and writes target the ephemeral
-read-only container.
+namespace creation, and a synthetic API token POST to a local in-container
+collector. The operations are harmless: the IP is reserved for
+documentation, `/host-secrets/api-key` contains only a synthetic canary, and
+writes target the ephemeral read-only container. Any canary access is reported
+as a high-severity finding, without implying that exfiltration occurred.
