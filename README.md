@@ -33,3 +33,20 @@ Look up a phase in `events.json`, then compare its `request_started` and
 `request_finished` timestamps with the epoch timestamps in `mcp.strace`.
 
 After the first build, use `python3 main.py --skip-build` for quicker runs.
+
+## Let Codex make the MCP call
+
+Build the image once with `python3 main.py`, then restart Codex from this trusted
+project. The project-scoped `.codex/config.toml` registers a server named
+`detonated_filesystem`. Ask Codex:
+
+```
+Use detonated_filesystem to read /sandbox-data/hello.txt and tell me its contents.
+```
+
+Codex talks to `codex_mcp.py`, which transparently forwards the real MCP stdio
+traffic to the sandboxed server. In addition to the syscall trace, the wrapper
+writes `trace-output/codex-transcript.jsonl`, containing the exact requests Codex
+sent and the exact responses the MCP server returned. Only `read_text_file` and
+`list_allowed_directories` are exposed to Codex, and tool approval is set to
+`prompt` for this first test.

@@ -46,6 +46,8 @@ def main() -> None:
             "--mount",
             f"type=bind,src={output},dst=/trace-output",
             IMAGE,
+            "python3",
+            "/app/client.py",
         ]
     )
     print(f"\nTrace written to {output / 'mcp.strace'}")

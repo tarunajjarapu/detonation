@@ -17,4 +17,4 @@ RUN useradd --uid 10001 --create-home sandbox \
     && chown sandbox:sandbox /trace-output
 USER sandbox
 
-CMD ["python3", "/app/client.py"]
+CMD ["strace", "-f", "-ttt", "-yy", "-s", "512", "-e", "trace=%file,%process,%network,read,write", "-o", "/trace-output/mcp.strace", "mcp-server-filesystem", "/sandbox-data"]
