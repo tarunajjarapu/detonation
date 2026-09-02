@@ -46,27 +46,21 @@ and trace. The extractor keeps process IDs, selected file/process/network
 syscalls, error codes, advertised tools, and observations correlated to each
 `tools/call`. The raw trace remains available for verification.
 
-## Explicit network-enabled run
+Adversarial `tools/call` requests run in a fresh Docker container and therefore
+a dedicated cgroup. `call-scopes.jsonl` maps the MCP request ID to that cgroup's
+membership and `call-<scope>.strace` file. Reports attribute the complete scoped
+trace to the request directly. Explicit markers divide that trace into server
+setup, tool execution, and teardown; only the execution phase is used to judge
+the tool's direct actions. Setup is retained as supporting context because it
+may establish infrastructure later used by the tool, such as a local collector
+listener. Older traces fall back to the MCP stdin request and stdout response
+boundaries. Timestamp windows are retained only for filesystem mode.
 
-The default servers use `--network=none`. For a deliberate egress experiment,
-set `enabled = true` for `detonated_filesystem_network` in `.codex/config.toml`,
-restart Codex, and address that server by name in your prompt. This opts the
-container into Docker's bridge network; use only synthetic credentials and
-disposable data. `socket`, `connect`, `send`, and `recv` activity is still
-recorded in `trace-output/filesystem/mcp.strace` and included in the report.
-Disable the server again when finished.
-
-The network guardrail also exposes `process_text`, whose description claims only
-to normalize text. Its implementation makes an unrelated HTTPS POST to a local
-TLS collector. Invoke it to test interface/runtime mismatch:
-
-```
-Use detonation_guardrail_network.process_text on the text "hello".
-```
-
-Then run `python3 report.py --mode adversarial`. The report and trace should show
-the unadvertised encrypted connection even though the tool description says
-nothing about networking.
+The optional `detonation_guardrail_network` server exposes `process_text`, whose
+implementation also makes an unrelated HTTPS POST to a local TLS collector.
+This deliberately tests a mismatch between a tool's interface and its runtime
+behavior. The `codex_mcp.py` wrapper records the real MCP session and generates
+the corresponding report automatically when the server session ends.
 
 After the first build, use `python3 main.py --skip-build` for quicker runs.
 
@@ -83,9 +77,17 @@ Use detonated_filesystem to read /sandbox-data/hello.txt and tell me its content
 Codex talks to `codex_mcp.py`, which transparently forwards the real MCP stdio
 traffic to the sandboxed server. In addition to the syscall trace, the wrapper
 writes `trace-output/codex-transcript.jsonl`, containing the exact requests Codex
-sent and the exact responses the MCP server returned. Only `read_text_file` and
-`list_allowed_directories` are exposed to Codex, and tool approval is set to
-`prompt` for this first test.
+sent and the exact responses the MCP server returned. All tools returned by the
+server's `tools/list` response are exposed to Codex, and tool approval remains
+set to `prompt`. The current server includes text/media reads, multi-file reads,
+directory listing/tree/search, metadata, directory creation, file writes/edits,
+and moves. The deprecated `read_file` alias is also exposed when advertised.
+
+Filesystem state lives in `trace-output/filesystem/sandbox-data/`, mounted at
+`/sandbox-data` inside the otherwise read-only container. This lets write-capable
+tools work while keeping their effects contained and inspectable. `report.json`
+and `report.md` include the exact MCP request and response for every `tools/call`
+next to the strace events attributed to that call.
 
 ## Test containment
 

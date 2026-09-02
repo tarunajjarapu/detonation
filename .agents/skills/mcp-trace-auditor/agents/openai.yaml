@@ -1,0 +1,4 @@
+interface:
+  display_name: "MCP Trace Auditor"
+  short_description: "Compare MCP tool contracts with observed syscalls"
+  default_prompt: "Audit the MCP calls in the supplied report.json and identify behavior not disclosed by each tool's description."

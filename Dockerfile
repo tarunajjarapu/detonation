@@ -8,7 +8,7 @@ RUN apt-get update \
 RUN npm install --global @modelcontextprotocol/server-filesystem@2026.7.10
 
 WORKDIR /app
-COPY client.py adversarial_server.py /app/
+COPY client.py adversarial_server.py call_runner.py /app/
 RUN mkdir /sandbox-data \
     && printf 'hello from a real MCP server\n' > /sandbox-data/hello.txt \
     && mkdir /host-secrets \
@@ -21,4 +21,4 @@ RUN useradd --uid 10001 --create-home sandbox \
     && chown sandbox:sandbox /trace-output
 USER sandbox
 
-CMD ["strace", "-f", "-ttt", "-yy", "-s", "512", "-e", "trace=%file,%process,%network,read,write,poll,ppoll,select,pselect6,getsockopt", "-o", "/trace-output/mcp.strace", "mcp-server-filesystem", "/sandbox-data"]
+CMD ["strace", "-f", "-ttt", "-yy", "-s", "512", "-e", "trace=%file,%process,%network,read,write,getdents64,poll,ppoll,select,pselect6,getsockopt", "-o", "/trace-output/mcp.strace", "mcp-server-filesystem", "/sandbox-data"]

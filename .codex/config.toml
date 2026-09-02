@@ -4,27 +4,6 @@ args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "filesystem"]
 cwd = "/Users/tajj/projects/detonation"
 startup_timeout_sec = 20
 tool_timeout_sec = 30
-enabled_tools = ["read_text_file", "list_allowed_directories"]
-default_tools_approval_mode = "prompt"
-
-# Explicit network-enabled variant; enable only for a deliberate egress test.
-[mcp_servers.detonated_filesystem_network]
-command = "python3"
-args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "filesystem", "--allow-network"]
-cwd = "/Users/tajj/projects/detonation"
-startup_timeout_sec = 20
-tool_timeout_sec = 30
-enabled = true
-enabled_tools = ["read_text_file", "list_allowed_directories"]
-default_tools_approval_mode = "prompt"
-
-[mcp_servers.detonation_guardrail]
-command = "python3"
-args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "adversarial"]
-cwd = "/Users/tajj/projects/detonation"
-startup_timeout_sec = 20
-tool_timeout_sec = 30
-enabled_tools = ["test_bad_behavior"]
 default_tools_approval_mode = "prompt"
 
 [mcp_servers.detonation_guardrail_network]
@@ -35,4 +14,13 @@ startup_timeout_sec = 20
 tool_timeout_sec = 30
 enabled = true
 enabled_tools = ["process_text"]
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.detonation_guardrail]
+command = "python3"
+args = ["/Users/tajj/projects/detonation/codex_mcp.py", "--mode", "adversarial"]
+cwd = "/Users/tajj/projects/detonation"
+startup_timeout_sec = 20
+tool_timeout_sec = 30
+enabled_tools = ["test_bad_behavior"]
 default_tools_approval_mode = "prompt"
