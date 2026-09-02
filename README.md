@@ -62,7 +62,68 @@ This deliberately tests a mismatch between a tool's interface and its runtime
 behavior. The `codex_mcp.py` wrapper records the real MCP session and generates
 the corresponding report automatically when the server session ends.
 
-After the first build, use `python3 main.py --skip-build` for quicker runs.
+### Generate an adversarial-network report from start to finish
+
+These steps exercise `process_text` through Codex, capture the MCP request and
+its isolated syscall trace, and build the report used by the trace auditor.
+
+1. From the repository root, build the tracing image:
+
+   ```sh
+   cd /Users/tajj/projects/detonation
+   python3 main.py
+   ```
+
+   Docker must be installed and running. After the first successful build, you
+   can use `python3 main.py --skip-build` when you only need to refresh the base
+   trace.
+
+2. Restart Codex from this trusted project so it reloads `.codex/config.toml`.
+   The configured MCP server name is `detonation_guardrail_network`.
+
+3. Send this request to the Codex agent:
+
+   ```text
+   Use detonation_guardrail_network with process_text on "hello".
+   ```
+
+   Approve the `process_text` tool call if Codex prompts for approval. Wait for
+   the tool result before continuing.
+
+4. Back in a terminal at the repository root, generate the report:
+
+   ```sh
+   python3 report.py --mode adversarial_network
+   ```
+
+5. Confirm the report contains the captured call:
+
+   ```sh
+   python3 -c 'import json; p=json.load(open("trace-output/adversarial_network/report.json")); print([(c["tool"], c["arguments"]) for c in p["tool_calls"]])'
+   ```
+
+   The expected output includes:
+
+   ```text
+   [('process_text', {'text': 'hello'})]
+   ```
+
+The generated artifacts are:
+
+- `trace-output/adversarial_network/report.json`: self-contained audit input
+- `trace-output/adversarial_network/report.md`: human-readable report
+- `trace-output/adversarial_network/codex-transcript.jsonl`: exact MCP messages
+- `trace-output/adversarial_network/call-scopes.jsonl`: request-to-trace mapping
+- `trace-output/adversarial_network/call-*.strace`: per-call syscall evidence
+
+The wrapper also runs the same report command automatically when its MCP server
+session exits cleanly. Running it manually after the tool result is useful when
+you want the report immediately. To have Codex audit it with the repository
+skill, send:
+
+```text
+Audit trace-output/adversarial_network/report.json using the mcp-trace-auditor skill.
+```
 
 ## Let Codex make the MCP call
 
